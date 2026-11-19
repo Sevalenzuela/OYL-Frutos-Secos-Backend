@@ -1,0 +1,20 @@
+# Archivos compilados
+**/target/
+
+# Configuracion local de IntelliJ
+**/.idea/
+**/*.iml
+
+# Bases de datos H2 locales
+**/*.mv.db
+**/*.trace.db
+**/*.lock.db
+
+# Archivos privados
+**/.env
+**/application-local.properties
+
+# Archivos temporales
+*.log
+.DS_Store
+Thumbs.db
