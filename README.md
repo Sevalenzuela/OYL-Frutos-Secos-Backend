@@ -1,45 +1,46 @@
-# OYL Frutos Secos Backend
+# OYL Frutos Secos — Backend
 
-## Instalación limpia en Windows
+Backend de la aplicación móvil OYL Frutos Secos, desarrollado mediante una arquitectura de microservicios.
 
-1. Instala un JDK 21 y abre PowerShell en la raíz del repositorio. Deja libres los puertos 8081 a 8084.
-2. En el primer arranque, ejecuta `.\iniciar-backend.ps1 -CrearAdmin`. Si el script no encuentra el JDK, agrega `-JavaHome` con la ruta de instalación.
-3. Ingresa la contraseña de `admin_oyl` cuando PowerShell la solicite. Usa al menos 12 caracteres y como máximo 72 bytes en UTF-8. La entrada queda oculta y el script entrega la contraseña a Clientes mediante una variable de entorno del proceso. Clientes guarda su hash en H2.
-4. En los siguientes arranques, ejecuta `.\iniciar-backend.ps1`. Si activas `-CrearAdmin` otra vez, Clientes conserva la contraseña del administrador existente. Si el nombre de usuario o el correo reservado está ocupado por otra cuenta, revisa la ventana de Clientes.
+## Tecnologías
 
-Las bases H2 se crean en las carpetas de los servicios y están excluidas de Git. Para una instalación independiente, usa otro checkout limpio y detén los servicios del checkout anterior antes de iniciarla. Cada arranque genera una nueva clave JWT, por lo que las sesiones anteriores requieren volver a iniciar sesión.
+- Java 21.
+- Spring Boot.
+- Spring Security.
+- Spring Data JPA.
+- H2 Database.
+- Maven.
+- JWT.
 
-## Pruebas
+## Microservicios
 
-Con Java 21 configurado, ejecuta `.\mvnw.cmd test` desde cada carpeta de servicio: `productos-service`, `inventario-service`, `clientes-service` y `pedidos-service`.
+| Servicio | Puerto | Responsabilidad |
+|---|---:|---|
+| Productos | 8081 | Catálogo, productos y fotografías. |
+| Inventario | 8082 | Existencias y movimientos de stock. |
+| Clientes | 8083 | Registro, autenticación y perfiles. |
+| Pedidos | 8084 | Compras, historial y estados de pedidos. |
 
-## Alta de productos con fotografía
+## Ejecución
 
-Android crea con `POST /api/productos` multipart autenticado como administrador.
-Envía las partes `datos` (JSON), `stock` (entero mayor o igual a cero) y `foto`
-(opcional), más una cabecera `Idempotency-Key` UUID. La edición multipart
-usa `PUT /api/productos/{id}` con `datos` y una foto opcional. Las rutas
-JSON de la API siguen disponibles para sus consumidores anteriores.
+Requisitos: Java 21, PowerShell y los puertos 8081 a 8084 disponibles.
 
-Productos conserva el alta pendiente hasta que Inventario verifica el producto
-y registra el stock inicial. Si falla la comunicación, reintenta desde el
-mismo formulario con los mismos datos. La misma clave identifica la primera
-solicitud guardada. Inventario conserva cualquier ajuste o reserva al repetir
-la inicialización. Los registros pendientes quedan fuera del catálogo.
+Primer inicio:
 
-Las imágenes JPEG y PNG se validan y recodifican antes de guardarlas en la
-base de Productos, con un máximo de 5 MiB y 4 megapíxeles. Cada foto se
-sirve por una ruta relativa al servicio de Productos. Incluye la base de
-Productos al respaldar la instalación para conservar las imágenes.
+`.\iniciar-backend.ps1 -CrearAdmin`
 
-Para ejecutar los servicios en el mismo equipo, usa `iniciar-backend.ps1`.
-Si Productos e Inventario se ejecutan en equipos distintos, configura
-`OYL_INVENTARIO_URL` en Productos y `OYL_PRODUCTOS_URL` en Inventario
-con las direcciones que cada servicio puede alcanzar.
+Ingresar una contraseña de al menos 12 caracteres para el administrador `admin_oyl`.
 
-Para revisar la recuperación ante fallos y la inicialización idempotente:
+Inicios posteriores:
 
-```powershell
-.\productos-service\mvnw.cmd -f productos-service/pom.xml test
-.\inventario-service\mvnw.cmd -f inventario-service/pom.xml test
-```
+`.\iniciar-backend.ps1`
+
+Las bases de datos H2 se inicializan automáticamente y conservan sus datos entre ejecuciones. Las claves JWT se generan al iniciar los servicios, por lo que es necesario volver a iniciar sesión después de reiniciarlos.
+
+Para crear productos desde Android se utiliza el endpoint multipart con inventario inicial, fotografía opcional y clave de idempotencia. El endpoint JSON anterior se mantiene por compatibilidad, pero no inicializa automáticamente el inventario.
+
+## Aplicación Android
+
+https://github.com/sigridRiquelme/OYL-Frutos-Secos
+
+La documentación técnica detallada se incluye en el documento README externo de la entrega académica.
