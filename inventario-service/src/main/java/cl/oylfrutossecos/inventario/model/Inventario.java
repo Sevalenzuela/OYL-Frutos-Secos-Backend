@@ -23,6 +23,14 @@ public class Inventario {
     @Column(name = "stock_reservado", nullable = false)
     private Integer stockReservado = 0;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Column(name = "clave_inicializacion", length = 36)
+    private String claveInicializacion;
+
+    public boolean fueInicializadoPor(String clave) {
+        return clave.equals(claveInicializacion);
+    }
+
     // Constructor requerido por JPA
     public Inventario() {
     }

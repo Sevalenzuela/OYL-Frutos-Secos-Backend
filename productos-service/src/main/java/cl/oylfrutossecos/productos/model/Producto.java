@@ -32,6 +32,26 @@ public class Producto {
     @Column(nullable = false)
     private Boolean activo = true;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Column(unique = true, length = 36)
+    private String claveAlta;
+
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private Integer stockPendiente;
+
+    public Integer stockPendiente() { return stockPendiente; }
+
+    public void prepararAlta(String clave, int stock) {
+        claveAlta = clave;
+        stockPendiente = stock;
+        activo = false;
+    }
+
+    public void completarAlta() {
+        stockPendiente = null;
+        activo = true;
+    }
+
     // Constructor requerido por JPA
     public Producto() {
     }
