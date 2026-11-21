@@ -16,8 +16,6 @@ public class Pedido {
     @Column(nullable = false, unique = true, length = 80)
     private String numero;
 
-    // Fecha expresada en milisegundos.
-    // Compatible con nuestro modelo Kotlin.
     @Column(nullable = false)
     private Long fecha;
 
@@ -44,7 +42,16 @@ public class Pedido {
     @Column(nullable = false, length = 30)
     private EstadoPedido estado = EstadoPedido.PENDIENTE;
 
-    // Relacion uno a muchos con los detalles.
+    // FASE TECNICA DEL REGISTRO DE COMPRA
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fase_compra", length = 20)
+    private FaseCompra faseCompra;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado_objetivo", length = 30)
+    private EstadoPedido estadoObjetivo;
+
     @OneToMany(
             mappedBy = "pedido",
             cascade = CascadeType.ALL,
@@ -55,11 +62,20 @@ public class Pedido {
     public Pedido() {
     }
 
-    // Agregar un detalle manteniendo la relacion.
+    // AGREGAR DETALLE
+
     public void agregarProducto(DetallePedido detalle) {
 
         productos.add(detalle);
         detalle.setPedido(this);
+    }
+
+    // DETERMINAR SI EL PEDIDO PUEDE MOSTRARSE
+
+    public boolean esVisible() {
+
+        return faseCompra == null
+                || faseCompra == FaseCompra.REGISTRADA;
     }
 
     // GETTERS Y SETTERS
@@ -144,7 +160,23 @@ public class Pedido {
         this.estado = estado;
     }
 
+    public FaseCompra getFaseCompra() {
+        return faseCompra;
+    }
+
+    public void setFaseCompra(FaseCompra faseCompra) {
+        this.faseCompra = faseCompra;
+    }
+
     public List<DetallePedido> getProductos() {
         return productos;
+    }
+
+    public EstadoPedido getEstadoObjetivo() {
+        return estadoObjetivo;
+    }
+
+    public void setEstadoObjetivo(EstadoPedido estadoObjetivo) {
+        this.estadoObjetivo = estadoObjetivo;
     }
 }

@@ -26,14 +26,18 @@ import static org.junit.jupiter.api.Assertions.*;
 import static cl.oylfrutossecos.pedidos.model.EstadoPedido.*;
 import static cl.oylfrutossecos.pedidos.model.ModalidadPedido.*;
 
+import org.springframework.test.context.TestPropertySource;
+
+@TestPropertySource(
+        properties = "oyl.recuperacion.enabled=false"
+)
+
 @SpringBootTest(properties = {
-
         "spring.datasource.url=jdbc:h2:mem:pedidos_integracion_test;DB_CLOSE_DELAY=-1",
-
         "spring.jpa.hibernate.ddl-auto=create-drop",
-
-        "spring.h2.console.enabled=false"
-
+        "spring.h2.console.enabled=false",
+        "oyl.jwt.secret=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+        "oyl.inventario.secret=YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODk="
 })
 @Transactional
 class PedidoIntegracionTest {

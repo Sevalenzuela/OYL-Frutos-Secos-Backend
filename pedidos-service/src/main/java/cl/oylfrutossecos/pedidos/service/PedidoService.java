@@ -2,12 +2,7 @@ package cl.oylfrutossecos.pedidos.service;
 
 import cl.oylfrutossecos.pedidos.domain.ReglasCreacionPedido;
 import cl.oylfrutossecos.pedidos.dto.PedidoResponse;
-
-import cl.oylfrutossecos.pedidos.model.Pedido;
-import cl.oylfrutossecos.pedidos.model.DetallePedido;
-import cl.oylfrutossecos.pedidos.model.EstadoPedido;
-import cl.oylfrutossecos.pedidos.model.ModalidadPedido;
-
+import cl.oylfrutossecos.pedidos.model.*;
 import cl.oylfrutossecos.pedidos.repository.PedidoRepository;
 
 import org.springframework.data.domain.Sort;
@@ -28,7 +23,7 @@ public class PedidoService {
         this.repository = repository;
     }
 
-    // 1. LISTAR TODOS LOS PEDIDOS
+    // 1. LISTAR PEDIDOS REGISTRADOS
 
     @Transactional(readOnly = true)
     public List<PedidoResponse> listarPedidos() {
@@ -37,6 +32,7 @@ public class PedidoService {
                         Sort.by(Sort.Direction.DESC, "fecha")
                 )
                 .stream()
+                .filter(Pedido::esVisible)
                 .map(this::convertirRespuesta)
                 .toList();
     }
@@ -47,6 +43,7 @@ public class PedidoService {
     public PedidoResponse buscarPorNumero(String numero) {
 
         Pedido pedido = repository.findByNumero(numero)
+                .filter(Pedido::esVisible)
                 .orElseThrow(() ->
                         new ResponseStatusException(
                                 HttpStatus.NOT_FOUND,
@@ -67,13 +64,13 @@ public class PedidoService {
         return repository
                 .findByClienteIdOrderByFechaDesc(clienteId)
                 .stream()
+                .filter(Pedido::esVisible)
                 .map(this::convertirRespuesta)
                 .toList();
     }
 
-    // 4. REGISTRAR PEDIDO INTERNAMENTE
-    // Los productos y precios deben estar previamente
-    // verificados por los microservicios correspondientes.
+    // 4. REGISTRO INTERNO DE PEDIDOS
+    // Se conserva para nuestras pruebas anteriores.
 
     @Transactional
     public PedidoResponse registrarPedido(
@@ -112,7 +109,7 @@ public class PedidoService {
         Pedido pedido = new Pedido();
 
         pedido.setNumero(
-                "OYL-" + UUID.randomUUID().toString()
+                "OYL-" + UUID.randomUUID()
         );
 
         pedido.setFecha(System.currentTimeMillis());
@@ -130,23 +127,21 @@ public class PedidoService {
         pedido.setTotal(total);
         pedido.setEstado(EstadoPedido.PENDIENTE);
 
-        // Crear los detalles asociados al nuevo pedido.
-
         for (DetallePedido producto : productos) {
 
-            DetallePedido detalle = new DetallePedido(
-                    producto.getIdProducto(),
-                    producto.getNombre(),
-                    producto.getCantidad(),
-                    producto.getPrecioUnitario()
+            pedido.agregarProducto(
+                    new DetallePedido(
+                            producto.getIdProducto(),
+                            producto.getNombre(),
+                            producto.getCantidad(),
+                            producto.getPrecioUnitario()
+                    )
             );
-
-            pedido.agregarProducto(detalle);
         }
 
-        Pedido guardado = repository.saveAndFlush(pedido);
-
-        return convertirRespuesta(guardado);
+        return convertirRespuesta(
+                repository.saveAndFlush(pedido)
+        );
     }
 
     // 5. VALIDAR DATOS DEL COMPRADOR

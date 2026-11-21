@@ -12,6 +12,10 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
+import cl.oylfrutossecos.pedidos.model.FaseCompra;
+import java.util.Collection;
+import java.util.List;
+
 public interface PedidoRepository
         extends JpaRepository<Pedido, Long> {
 
@@ -33,4 +37,10 @@ public interface PedidoRepository
     Optional<Pedido> buscarConBloqueo(
             @Param("numero") String numero
     );
+
+    List<Pedido> findByFaseCompraInOrderByFechaAsc(
+            Collection<FaseCompra> fases
+    );
+
+    List<Pedido> findByEstadoObjetivoIsNotNullOrderByFechaAsc();
 }
