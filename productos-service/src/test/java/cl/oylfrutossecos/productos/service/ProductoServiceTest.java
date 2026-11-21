@@ -66,7 +66,7 @@ class ProductoServiceTest {
 
         Producto producto = crearProductoPrueba();
 
-        when(repository.findAll(any(Sort.class)))
+        when(repository.findAllByStockPendienteIsNull(any(Sort.class)))
                 .thenReturn(List.of(producto));
 
         List<Producto> resultado =
@@ -78,7 +78,7 @@ class ProductoServiceTest {
                 resultado.get(0).getNombre()
         );
 
-        verify(repository).findAll(
+        verify(repository).findAllByStockPendienteIsNull(
                 Sort.by(Sort.Direction.ASC, "id")
         );
     }

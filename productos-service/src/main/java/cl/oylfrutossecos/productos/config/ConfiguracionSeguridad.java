@@ -119,8 +119,12 @@ public class ConfiguracionSeguridad {
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/productos",
-                                "/api/productos/*"
+                                "/api/productos/*",
+                                "/api/productos/*/foto/*"
                         ).permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/api/productos/*/alta/*")
+                        .hasRole("ADMINISTRADOR")
 
                         // CREAR PRODUCTOS
 

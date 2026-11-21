@@ -12,3 +12,34 @@ Las bases H2 se crean en las carpetas de los servicios y están excluidas de Git
 ## Pruebas
 
 Con Java 21 configurado, ejecuta `.\mvnw.cmd test` desde cada carpeta de servicio: `productos-service`, `inventario-service`, `clientes-service` y `pedidos-service`.
+
+## Alta de productos con fotografía
+
+Android crea con `POST /api/productos` multipart autenticado como administrador.
+Envía las partes `datos` (JSON), `stock` (entero mayor o igual a cero) y `foto`
+(opcional), más una cabecera `Idempotency-Key` UUID. La edición multipart
+usa `PUT /api/productos/{id}` con `datos` y una foto opcional. Las rutas
+JSON de la API siguen disponibles para sus consumidores anteriores.
+
+Productos conserva el alta pendiente hasta que Inventario verifica el producto
+y registra el stock inicial. Si falla la comunicación, reintenta desde el
+mismo formulario con los mismos datos. La misma clave identifica la primera
+solicitud guardada. Inventario conserva cualquier ajuste o reserva al repetir
+la inicialización. Los registros pendientes quedan fuera del catálogo.
+
+Las imágenes JPEG y PNG se validan y recodifican antes de guardarlas en la
+base de Productos, con un máximo de 5 MiB y 4 megapíxeles. Cada foto se
+sirve por una ruta relativa al servicio de Productos. Incluye la base de
+Productos al respaldar la instalación para conservar las imágenes.
+
+Para ejecutar los servicios en el mismo equipo, usa `iniciar-backend.ps1`.
+Si Productos e Inventario se ejecutan en equipos distintos, configura
+`OYL_INVENTARIO_URL` en Productos y `OYL_PRODUCTOS_URL` en Inventario
+con las direcciones que cada servicio puede alcanzar.
+
+Para revisar la recuperación ante fallos y la inicialización idempotente:
+
+```powershell
+.\productos-service\mvnw.cmd -f productos-service/pom.xml test
+.\inventario-service\mvnw.cmd -f inventario-service/pom.xml test
+```

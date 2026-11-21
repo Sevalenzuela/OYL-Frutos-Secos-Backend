@@ -3,8 +3,11 @@ package cl.oylfrutossecos.productos.service;
 
 import cl.oylfrutossecos.productos.dto.ProductoRequest;
 import cl.oylfrutossecos.productos.model.Producto;
+import cl.oylfrutossecos.productos.model.FotoProducto;
 import cl.oylfrutossecos.productos.repository.ProductoRepository;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -23,10 +26,56 @@ public class ProductoService {
         this.repository = repository;
     }
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
+    @Transactional
+    public Producto prepararAlta(String clave, int stock, ProductoRequest datos, FotoProducto foto) {
+        return repository.findByClaveAlta(clave).orElseGet(() -> {
+            Producto producto = new Producto();
+            copiarDatos(producto, datos);
+            producto.prepararAlta(clave, stock);
+            repository.saveAndFlush(producto);
+            guardarFoto(producto, foto);
+            return producto;
+        });
+    }
+
+    public int consultarStockPendiente(Long id, String clave) {
+        return repository.findByClaveAlta(clave)
+                .filter(producto -> producto.getId().equals(id))
+                .map(Producto::stockPendiente)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Alta pendiente no encontrada"));
+    }
+
+    @Transactional
+    public Producto completarAlta(Long id) {
+        Producto producto = repository.findById(id).orElseThrow();
+        if (producto.stockPendiente() != null) {
+            producto.completarAlta();
+        }
+        return producto;
+    }
+
+    public Optional<FotoProducto> buscarFoto(Long id, String version) {
+        return buscarPorId(id).flatMap(producto ->
+                Optional.ofNullable(entityManager.find(FotoProducto.class, id))
+                        .filter(foto -> foto.version().equals(version)
+                                && foto.ruta().equals(producto.getImagenUri())));
+    }
+
+    private void guardarFoto(Producto producto, FotoProducto foto) {
+        if (foto != null) {
+            foto.asignarProducto(producto.getId());
+            entityManager.merge(foto);
+            producto.setImagenUri(foto.ruta());
+        }
+    }
+
     // 1. LISTAR TODOS LOS PRODUCTOS
     public List<Producto> listarProductos() {
 
-        return repository.findAll(
+        return repository.findAllByStockPendienteIsNull(
                 Sort.by(Sort.Direction.ASC, "id")
         );
     }
@@ -34,14 +83,14 @@ public class ProductoService {
     // 2. BUSCAR PRODUCTO POR ID
     public Optional<Producto> buscarPorId(Long id) {
 
-        return repository.findById(id);
+        return repository.findById(id).filter(producto -> producto.stockPendiente() == null);
     }
 
     // Buscar un producto obligatorio.
     // Si no existe, responder con HTTP 404.
     private Producto obtenerProducto(Long id) {
 
-        return repository.findById(id)
+        return buscarPorId(id)
                 .orElseThrow(() ->
                         new ResponseStatusException(
                                 HttpStatus.NOT_FOUND,
@@ -70,10 +119,22 @@ public class ProductoService {
             ProductoRequest datos
     ) {
 
+        return actualizarProducto(id, datos, null);
+    }
+
+    @Transactional
+    public Producto actualizarProducto(Long id, ProductoRequest datos, FotoProducto foto) {
         Producto producto = obtenerProducto(id);
-
+        String fotoAnterior = producto.getImagenUri();
         copiarDatos(producto, datos);
-
+        guardarFoto(producto, foto);
+        if (foto == null && fotoAnterior != null && fotoAnterior.startsWith("/api/productos/")
+                && !fotoAnterior.equals(producto.getImagenUri())) {
+            FotoProducto anterior = entityManager.find(FotoProducto.class, id);
+            if (anterior != null) {
+                entityManager.remove(anterior);
+            }
+        }
         return repository.save(producto);
     }
 
@@ -114,6 +175,10 @@ public class ProductoService {
         producto.setPrecio(datos.precio());
         producto.setDescripcion(datos.descripcion().trim());
         producto.setPresentacion(datos.presentacion().trim());
-        producto.setImagenUri(datos.imagenUri());
+        String referencia = datos.imagenUri();
+        if (referencia != null && referencia.stripLeading().matches("(?is)^(content|file):.*")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Adjunta la foto como archivo");
+        }
+        producto.setImagenUri(referencia);
     }
 }
