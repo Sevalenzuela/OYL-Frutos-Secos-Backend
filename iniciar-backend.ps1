@@ -1,6 +1,7 @@
 
 param(
-    [string]$JavaHome = ""
+    [string]$JavaHome = "",
+    [switch]$CrearAdmin
 )
 
 $ErrorActionPreference = "Stop"
@@ -127,6 +128,34 @@ $env:OYL_ADMIN_BOOTSTRAP = "false"
 
 Remove-Item Env:OYL_ADMIN_PASSWORD -ErrorAction SilentlyContinue
 
+# En una instalacion nueva, solicitar la contrasena sin mostrarla
+# ni escribirla en un archivo. Solo se entrega al proceso Clientes.
+$claveAdminSegura = $null
+
+if ($CrearAdmin) {
+
+    $claveAdminSegura = Read-Host "Contrasena inicial de admin_oyl (minimo 12 caracteres)" -AsSecureString
+    $puntero = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($claveAdminSegura)
+
+    try {
+
+        $texto = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($puntero)
+
+        if (
+            [string]::IsNullOrWhiteSpace($texto) -or
+            $texto.Length -lt 12 -or
+            [System.Text.Encoding]::UTF8.GetByteCount($texto) -gt 72
+        ) {
+            throw "La contrasena administrativa debe tener al menos 12 caracteres y como maximo 72 bytes UTF-8."
+        }
+
+    } finally {
+
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($puntero)
+        Remove-Variable texto -ErrorAction SilentlyContinue
+    }
+}
+
 Write-Host "[OK] Clave JWT compartida generada." -ForegroundColor Green
 
 # GENERAR CREDENCIAL INTERNA DE INVENTARIO
@@ -190,9 +219,41 @@ if ($servicio.Nombre -in @("Inventario", "Pedidos")) {
 
     Remove-Item Env:OYL_INVENTARIO_SECRET -ErrorAction SilentlyContinue
 }
-    Start-Process powershell.exe `
-        -WorkingDirectory $carpeta `
-        -ArgumentList "-NoProfile", "-NoExit", "-Command", $comando
+    # Entregar la contrasena administrativa solo a Clientes, si se solicita.
+    if ($CrearAdmin -and $servicio.Nombre -eq "Clientes") {
+
+        $puntero = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($claveAdminSegura)
+
+        try {
+            $env:OYL_ADMIN_PASSWORD = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($puntero)
+            $env:OYL_ADMIN_BOOTSTRAP = "true"
+        } finally {
+            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($puntero)
+        }
+
+    } else {
+
+        $env:OYL_ADMIN_BOOTSTRAP = "false"
+        Remove-Item Env:OYL_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+    }
+
+    try {
+
+        Start-Process powershell.exe `
+            -WorkingDirectory $carpeta `
+            -ArgumentList "-NoProfile", "-NoExit", "-Command", $comando
+
+    } finally {
+
+        # Evitar que los siguientes servicios hereden la contrasena.
+        Remove-Item Env:OYL_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+        $env:OYL_ADMIN_BOOTSTRAP = "false"
+
+        if ($CrearAdmin -and $servicio.Nombre -eq "Clientes") {
+            $claveAdminSegura.Dispose()
+            $claveAdminSegura = $null
+        }
+    }
 
     $limite = (Get-Date).AddSeconds(180)
 
