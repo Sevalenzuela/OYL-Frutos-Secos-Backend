@@ -243,6 +243,9 @@ public class ConfiguracionSeguridad {
                                 "/api/inventario/*"
                         ).permitAll()
 
+                        .requestMatchers(HttpMethod.PUT, "/api/inventario/*/inicial")
+                        .hasRole("ADMINISTRADOR")
+
                         // AJUSTAR EXISTENCIAS
 
                         .requestMatchers(

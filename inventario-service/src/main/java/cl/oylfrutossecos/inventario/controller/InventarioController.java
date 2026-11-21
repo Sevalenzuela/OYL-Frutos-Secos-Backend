@@ -7,13 +7,16 @@ import cl.oylfrutossecos.inventario.model.Inventario;
 import cl.oylfrutossecos.inventario.model.ReservaStock;
 
 import cl.oylfrutossecos.inventario.service.InventarioService;
+import cl.oylfrutossecos.inventario.service.AltaPendiente;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/inventario")
@@ -21,9 +24,23 @@ public class InventarioController {
 
     private final InventarioService service;
 
-    public InventarioController(InventarioService service) {
+    private final AltaPendiente altas;
+
+    public InventarioController(InventarioService service,
+            AltaPendiente altas) {
         this.service = service;
+        this.altas = altas;
     }
+
+    @PutMapping("/{productoId}/inicial")
+    public Inventario inicializar(@PathVariable Long productoId,
+            @RequestHeader("Authorization") String autorizacion,
+            @Valid @RequestBody Inicializacion datos) {
+        int stock = altas.consultarStock(productoId, datos.clave(), autorizacion);
+        return service.inicializar(productoId, stock, datos.clave().toString());
+    }
+
+    public record Inicializacion(@NotNull UUID clave) {}
 
     // LISTAR INVENTARIO
     @GetMapping

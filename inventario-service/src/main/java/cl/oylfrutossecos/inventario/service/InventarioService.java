@@ -34,6 +34,28 @@ public class InventarioService {
         this.reservaRepository = reservaRepository;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    public Inventario inicializar(Long productoId, int stock, String clave) {
+        if (productoId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Producto inválido");
+        }
+        try {
+            jdbc.update("""
+                    INSERT INTO inventario (producto_id, stock_disponible, stock_reservado, clave_inicializacion)
+                    VALUES (?, ?, 0, ?)
+                    """, productoId, stock, clave);
+        } catch (org.springframework.dao.DuplicateKeyException existente) {
+            // Un reintento nunca reinicia unidades ajustadas o reservadas.
+        }
+        Inventario inventario = inventarioRepository.findById(productoId).orElseThrow();
+        if (!inventario.fueInicializadoPor(clave)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El inventario pertenece a otra alta");
+        }
+        return inventario;
+    }
+
     // 1. CONSULTAR INVENTARIO
     public List<Inventario> listarInventario() {
 
