@@ -120,13 +120,9 @@ $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
 
 $rng.GetBytes($bytes)
 
-$env:OYL_JWT_SECRET = [Convert]::ToBase64String($bytes)
+$secretoJwt = [Convert]::ToBase64String($bytes)
 
 $rng.Dispose()
-
-$env:OYL_ADMIN_BOOTSTRAP = "false"
-
-Remove-Item Env:OYL_ADMIN_PASSWORD -ErrorAction SilentlyContinue
 
 # En una instalacion nueva, solicitar la contrasena sin mostrarla
 # ni escribirla en un archivo. Solo se entrega al proceso Clientes.
@@ -146,6 +142,7 @@ if ($CrearAdmin) {
             $texto.Length -lt 12 -or
             [System.Text.Encoding]::UTF8.GetByteCount($texto) -gt 72
         ) {
+            $claveAdminSegura.Dispose()
             throw "La contrasena administrativa debe tener al menos 12 caracteres y como maximo 72 bytes UTF-8."
         }
 
@@ -209,47 +206,45 @@ foreach ($servicio in $servicios) {
 
     $carpeta = Join-Path $raiz $servicio.Carpeta
 
-    $comando = '$Host.UI.RawUI.WindowTitle = "OYL - {0}"; .\mvnw.cmd spring-boot:run' -f $servicio.Nombre
+    $comando = '$Host.UI.RawUI.WindowTitle = "OYL - {0}"; try {{ .\mvnw.cmd spring-boot:run }} finally {{ Remove-Item Env:OYL_ADMIN_PASSWORD -ErrorAction SilentlyContinue; $env:OYL_ADMIN_BOOTSTRAP = "false" }}' -f $servicio.Nombre
+    $comandoCodificado = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($comando))
 
-if ($servicio.Nombre -in @("Inventario", "Pedidos")) {
-
-    $env:OYL_INVENTARIO_SECRET = $secretoInventario
-
-} else {
-
-    Remove-Item Env:OYL_INVENTARIO_SECRET -ErrorAction SilentlyContinue
-}
-    # Entregar la contrasena administrativa solo a Clientes, si se solicita.
-    if ($CrearAdmin -and $servicio.Nombre -eq "Clientes") {
-
-        $puntero = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($claveAdminSegura)
-
-        try {
-            $env:OYL_ADMIN_PASSWORD = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($puntero)
-            $env:OYL_ADMIN_BOOTSTRAP = "true"
-        } finally {
-            [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($puntero)
-        }
-
-    } else {
-
-        $env:OYL_ADMIN_BOOTSTRAP = "false"
-        Remove-Item Env:OYL_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+    $variables = @{
+        OYL_JWT_SECRET = $secretoJwt
+        OYL_INVENTARIO_SECRET = $null
+        OYL_ADMIN_BOOTSTRAP = "false"
+        OYL_ADMIN_PASSWORD = $null
+    }
+    if ($servicio.Nombre -in @("Inventario", "Pedidos")) {
+        $variables.OYL_INVENTARIO_SECRET = $secretoInventario
     }
 
+    $variablesAnteriores = @{}
+    $inicializarAdmin = $CrearAdmin -and $servicio.Nombre -eq "Clientes"
     try {
-
+        foreach ($nombre in $variables.Keys) {
+            $variablesAnteriores[$nombre] = [Environment]::GetEnvironmentVariable($nombre)
+            [Environment]::SetEnvironmentVariable($nombre, $variables[$nombre])
+        }
+        if ($inicializarAdmin) {
+            $puntero = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($claveAdminSegura)
+            try {
+                $env:OYL_ADMIN_PASSWORD = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($puntero)
+                $env:OYL_ADMIN_BOOTSTRAP = "true"
+            } finally {
+                [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($puntero)
+            }
+        }
         Start-Process powershell.exe `
             -WorkingDirectory $carpeta `
-            -ArgumentList "-NoProfile", "-NoExit", "-Command", $comando
+            -ArgumentList "-NoProfile", "-NoExit", "-EncodedCommand", $comandoCodificado
 
     } finally {
 
-        # Evitar que los siguientes servicios hereden la contrasena.
-        Remove-Item Env:OYL_ADMIN_PASSWORD -ErrorAction SilentlyContinue
-        $env:OYL_ADMIN_BOOTSTRAP = "false"
-
-        if ($CrearAdmin -and $servicio.Nombre -eq "Clientes") {
+        foreach ($nombre in $variablesAnteriores.Keys) {
+            [Environment]::SetEnvironmentVariable($nombre, $variablesAnteriores[$nombre])
+        }
+        if ($inicializarAdmin) {
             $claveAdminSegura.Dispose()
             $claveAdminSegura = $null
         }
@@ -271,6 +266,9 @@ if ($servicio.Nombre -in @("Inventario", "Pedidos")) {
     }
 
     if (-not $conectado) {
+        if ($null -ne $claveAdminSegura) {
+            $claveAdminSegura.Dispose()
+        }
 
         Write-Host "[ERROR] $($servicio.Nombre) no pudo iniciar." -ForegroundColor Red
         Write-Host "Revisa la terminal del microservicio."
